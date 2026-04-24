@@ -17,6 +17,7 @@ All implemented customizations for the AlphaVision Equity Terminal project.
 - WSL policy: All commands run in WSL; never Windows PowerShell or CMD
 - Standards: PEP 8, type hints, Google docstrings, 90%+ test coverage
 - Zero-trust: warnings = defects, mock all external calls, don't exit without tests passing
+- **UI testing required**: Gate 6 — start Streamlit and confirm HTTP 200 before marking any UI task done. Unit tests verify logic, not rendering.
 - Docs: update `docs/<module>.md` + `CHANGELOG.md` in same commit as code changes
 - Cleanup: temp files (`debug_*.py`, `scratch_*.py`, `*_temp.json`) deleted before done
 

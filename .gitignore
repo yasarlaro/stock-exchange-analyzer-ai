@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+.eggs/
+dist/
+build/
+
+# Virtual environment
+.venv/
+
+# Environment / secrets
+.env
+*.key
+*.pem
+
+# IDE
+.idea/
+*.swp
+
+# Test / coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary debug files
+debug_*.py
+scratch_*.py
+test_manual_*.py
+*_temp.json
+output_debug.*

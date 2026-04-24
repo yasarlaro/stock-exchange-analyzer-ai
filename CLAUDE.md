@@ -285,16 +285,39 @@ def compute_conviction_score(ticker: str, weights: dict[str, float]) -> float:
 
 ## Mandatory Pre-Completion Checklist
 
-Before marking any task complete, run ALL five in WSL. Do not respond with
-"done" until all pass:
+Before marking any task complete, run ALL six steps in WSL. Do not respond
+with "done" until every step passes or is explicitly acknowledged.
+
+### Gate 1–5: Automated checks
 
 ```bash
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy src/
 uv run pytest -W error --cov=alphavision --cov-fail-under=90
-uv run streamlit run app.py --server.headless true &
+uv run python -c "import alphavision; print('AlphaVision import: OK')"
 ```
+
+### Gate 6: UI smoke test (mandatory for any change that touches app.py or universe logic)
+
+Start the Streamlit app and confirm it responds:
+
+```bash
+uv run streamlit run app.py --server.headless true &
+sleep 8
+curl -s -o /dev/null -w "%{http_code}" http://localhost:8501/
+# Must return 200
+```
+
+Then manually verify:
+- [ ] App starts without any error or traceback in the log
+- [ ] No DeprecationWarning or ResourceWarning in startup output
+- [ ] The feature under test is reachable in the UI
+- [ ] Data loads correctly and displays expected output
+- [ ] App shuts down cleanly (Ctrl+C, no residual errors)
+
+**Do NOT mark a UI feature complete until Gate 6 passes.**
+Unit tests verify code logic, not that the UI actually renders.
 
 ---
 

@@ -10,7 +10,8 @@
       "Bash(pytest:*)",
       "Bash(az:*)",
       "Edit(/.claude/skills/review/**)",
-      "Edit(/.claude/skills/test/**)"
+      "Edit(/.claude/skills/test/**)",
+      "Bash(curl -s http://localhost:8501/)"
     ],
     "deny": [
       "Bash(pip install:*)",
