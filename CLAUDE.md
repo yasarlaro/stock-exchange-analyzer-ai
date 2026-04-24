@@ -38,7 +38,7 @@ opportunities (stocks that have declined significantly) and "Momentum" winners
 - `Weekly_Reports`: Report_Date, Ticker, Score, Rank, Upside
 - `Leadership_Board`: Ticker, Streak, Total_Score, Avg_Rank
 
-### Methodology Summary (see METADOLOGY.md for full detail)
+### Methodology Summary (see docs/METADOLOGY.md for full detail)
 
 **Dual-Track Filtering (entry gate):**
 - Channel A — Turnaround: ≥ 25% drawdown from peak in last 6 months
@@ -110,8 +110,10 @@ Commit `uv.lock` always. Never commit `.venv/`.
 ### Virtual Environment
 
 - Name: always `.venv` — no `venv`, no `env`, no `.env`
-- Create: `uv venv .venv`
-- `.venv/` must be in `.gitignore`
+- **`uv sync` creates and updates `.venv` automatically** — do not run `python -m venv` or `virtualenv`
+- **`uv run <cmd>` activates the venv automatically** — never run `source .venv/bin/activate` manually; always prefix commands with `uv run`
+- Verify the venv exists: `ls .venv/bin/python`
+- `.venv/` must be in `.gitignore` and never committed
 
 ### Python Version
 
@@ -138,15 +140,19 @@ All Python projects use the **`src/` layout**. Source code lives under
 │   ├── __init__.py
 │   ├── test_module1.py
 │   └── test_module2.py
-├── docs/
-│   └── <module>.md
+├── docs/                    # ALL documentation lives here
+│   ├── <module>.md          # one API doc per module
+│   ├── ARCHITECTURE.md      # system design (SAD)
+│   ├── METADOLOGY.md        # Dual-Track & scoring methodology
+│   ├── ROADMAP.md           # implementation phases
+│   └── CUSTOMIZATIONS.md    # Claude Code customizations reference
 ├── app.py                   # Streamlit entry point (not in src/)
 ├── pyproject.toml
 ├── uv.lock
 ├── .python-version
 ├── .env.example
-├── CHANGELOG.md
-└── README.md
+├── CHANGELOG.md             # root — standard project convention
+└── README.md                # root — standard project convention
 ```
 
 ### Rules
@@ -154,7 +160,8 @@ All Python projects use the **`src/` layout**. Source code lives under
 - **Source code**: always `src/alphavision/` — never `alphavision/` at root
 - **Tests**: always `tests/` at root — never inside `src/`
 - **Streamlit app**: `app.py` at root — not inside `src/`
-- **Docs**: `docs/<module>.md` at root — one file per module
+- **All documentation**: `docs/` — every `.md` file except `README.md` and `CHANGELOG.md` goes in `docs/`
+- **Never create at root**: any `.md` file other than `README.md` or `CHANGELOG.md`
 - **Never create**: `requirements.txt`, `setup.py`, `setup.cfg`
 
 ### pyproject.toml — Required Sections
@@ -335,6 +342,24 @@ For every non-trivial implementation choice, add a comment block:
 
 ---
 
+## Language — English Only
+
+All project artifacts must be written in English. This rule is non-negotiable
+and applies to every layer of the project:
+
+- **Code**: function names, variable names, class names, module names
+- **Comments**: all inline comments and `# Alternatives considered:` blocks
+- **Docstrings**: all Google-style docstrings (Args, Returns, Raises)
+- **Documentation**: every file inside `docs/`, `README.md`, `CHANGELOG.md`
+- **Commit messages**: all Conventional Commit messages
+- **Claude customizations**: CLAUDE.md, skill files, agent files, commands
+
+The user may write questions or instructions to Claude in Turkish — that is fine.
+But Claude's responses that touch any project artifact (code, docs, comments)
+must produce **English-only output**. Never leave Turkish text in committed files.
+
+---
+
 ## Temporary Files
 
 Delete all scratch/debug files before ending a task.
@@ -345,9 +370,17 @@ Never leave in the repo: `debug_*.py`, `scratch_*.py`, `test_manual_*.py`,
 
 ## Documentation Maintenance
 
-When any public function/method/class/behavior changes, in the same commit:
-1. Update `docs/<module>.md`
-2. Add entry to `CHANGELOG.md` under `[Unreleased]`
+Every code change — new feature, bug fix, or refactor — must update these files
+**in the same commit**:
+
+1. `docs/<module>.md` — if a public function/method/class/behavior changed
+2. `CHANGELOG.md [Unreleased]` — one-line entry describing what changed and why
+3. `README.md` — if user-visible behavior, installation steps, or project
+   structure changed
+
+Never leave these three out of sync with the code.
+If a doc update would be trivial noise (e.g. renaming a private helper),
+skip #1 and #3, but always update #2.
 
 ---
 

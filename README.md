@@ -38,10 +38,13 @@ AlphaVision identifies the top 20 equities with maximum profit potential using a
    cd stock-exchange-analyzer-ai
    ```
 
-2. **Install dependencies** (creates `.venv`):
+2. **Install dependencies** (creates `.venv` automatically):
    ```bash
    uv sync --dev
    ```
+
+   `uv sync` creates `.venv` and installs all packages. You never need to
+   activate it manually — always use `uv run <command>`.
 
    This installs:
    - `streamlit`: web UI framework
@@ -75,7 +78,7 @@ uv run pytest tests/test_universe.py -v
 uv run pytest -v
 ```
 
-**Current coverage**: 100% (21 tests)
+**Current coverage**: 100% (25 tests)
 
 ### Code Quality Checks
 
@@ -106,20 +109,21 @@ stock-exchange-analyzer-ai/
 │   └── universe.py              # S&P 500 + Nasdaq-100 universe builder
 ├── tests/                        # Test suite
 │   ├── __init__.py
-│   └── test_universe.py         # Universe module tests (21 tests)
-├── docs/                         # Module documentation
-│   └── universe.md              # Universe module API reference
+│   └── test_universe.py         # Universe module tests (25 tests, 100% coverage)
+├── docs/                         # All project documentation
+│   ├── universe.md              # Universe module API reference
+│   ├── METADOLOGY.md            # Dual-Track filtering methodology
+│   ├── ROADMAP.md               # 7-phase implementation roadmap
+│   ├── SAD.md                   # System architecture document
+│   └── CUSTOMIZATIONS.md       # Claude Code customizations reference
 ├── app.py                        # Streamlit app entry point
 ├── pyproject.toml               # Project config (deps, tools, build)
 ├── uv.lock                      # Locked dependency versions
 ├── .python-version              # Python 3.13 pin
 ├── .gitignore                   # Git ignore rules
 ├── CHANGELOG.md                 # Version history
-├── CLAUDE.md                    # Development instructions
-├── CUSTOMIZATIONS.md            # Claude Code customizations
-├── METADOLOGY.md                # Dual-Track filtering methodology
-├── ROADMAP.md                   # 7-phase implementation roadmap
-└── SAD.md                       # System architecture document
+├── CLAUDE.md                    # Development instructions (auto-loaded by Claude Code)
+└── README.md                    # This file
 ```
 
 ## Development Workflow
@@ -162,7 +166,7 @@ git commit -m "docs: update universe module API"
 | **5** | SQLite Persistence (store weekly reports & leadership board) | 📋 Planned |
 | **6** | Azure Blob Backup (weekly encrypted backup to cloud) | 📋 Planned |
 
-See [ROADMAP.md](ROADMAP.md) for detailed phase breakdown and dependencies.
+See [docs/ROADMAP.md](docs/ROADMAP.md) for detailed phase breakdown and dependencies.
 
 ## Key Concepts
 
@@ -191,8 +195,10 @@ Two independent entry gates:
 ### "Module not found: alphavision"
 
 ```bash
-# Ensure .venv is activated and package is installed editably
-uv sync
+# Recreate .venv and install all packages
+uv sync --dev
+# Always use uv run — never activate .venv manually
+uv run python -c "import alphavision; print('OK')"
 ```
 
 ### Streamlit app won't start
@@ -252,16 +258,18 @@ addopts = "-W error"          # Treat warnings as errors
 
 1. Create a feature branch: `git checkout -b feat/my-feature`
 2. Make changes + add tests
-3. Run all five gates (see above)
-4. Open a pull request with a descriptive title
-5. Ensure CI passes (GitHub Actions, once set up)
+3. Run all six gates (see Code Quality Checks above + Gate 6 Streamlit smoke test)
+4. Update `CHANGELOG.md` and `README.md` if behavior changed
+5. Open a pull request with a descriptive title
+6. Ensure CI passes (GitHub Actions, once set up)
 
 ## Learning Resources
 
-- **Methodology**: See [METADOLOGY.md](METADOLOGY.md)
-- **Architecture**: See [SAD.md](SAD.md)
-- **Implementation Plan**: See [ROADMAP.md](ROADMAP.md)
-- **Module Docs**: See [docs/](docs/)
+- **Methodology**: See [docs/METADOLOGY.md](docs/METADOLOGY.md)
+- **Architecture**: See [docs/SAD.md](docs/SAD.md)
+- **Implementation Plan**: See [docs/ROADMAP.md](docs/ROADMAP.md)
+- **Module Docs**: See [docs/universe.md](docs/universe.md)
+- **Claude Code Customizations**: See [docs/CUSTOMIZATIONS.md](docs/CUSTOMIZATIONS.md)
 - **Development Standards**: See [CLAUDE.md](CLAUDE.md)
 
 ## License

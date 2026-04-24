@@ -8,17 +8,20 @@ All implemented customizations for the AlphaVision Equity Terminal project.
 
 | File | Purpose | Active Per Chat | Trigger |
 |---|---|---|---|
-| [CLAUDE.md](CLAUDE.md) | Project identity, persona, tech stack, coding standards, WSL policy, testing policy, documentation rules, temp file rules, pre-completion checklist | ✅ Always (auto-loaded) | Every conversation |
+| [CLAUDE.md](../CLAUDE.md) | Project identity, persona, tech stack, coding standards, WSL policy, venv policy, language policy, testing policy, documentation rules, temp file rules, pre-completion checklist | ✅ Always (auto-loaded) | Every conversation |
 
 **What CLAUDE.md makes agents understand automatically:**
 - Project: AlphaVision Equity Terminal (S&P 500 + Nasdaq-100, Dual-Track, Conviction Score)
 - Persona: 4 hats — AI Architect, QA Tech Lead, DevOps Expert, Documentation Owner
 - Tech stack: Streamlit · SQLite · yfinance/Pandas · Azure Blob Storage · uv
 - WSL policy: All commands run in WSL; never Windows PowerShell or CMD
+- **Virtual environment**: `.venv` managed by `uv sync`; always use `uv run` — never activate manually
+- **Language**: All code, comments, docstrings, and documentation must be in English. User may write in Turkish; project artifacts must not.
 - Standards: PEP 8, type hints, Google docstrings, 90%+ test coverage
 - Zero-trust: warnings = defects, mock all external calls, don't exit without tests passing
 - **UI testing required**: Gate 6 — start Streamlit and confirm HTTP 200 before marking any UI task done. Unit tests verify logic, not rendering.
-- Docs: update `docs/<module>.md` + `CHANGELOG.md` in same commit as code changes
+- **Docs location**: all `.md` files except `README.md` and `CHANGELOG.md` go in `docs/`
+- **Docs update**: `docs/<module>.md` + `CHANGELOG.md` + `README.md` (if user-visible change) updated in same commit as code
 - Cleanup: temp files (`debug_*.py`, `scratch_*.py`, `*_temp.json`) deleted before done
 
 ---
@@ -106,7 +109,12 @@ Sub-agents are spawned by Claude Code for focused, isolated work on large tasks.
 | Tech stack | Streamlit, SQLite, yfinance, Azure Blob, uv | CLAUDE.md |
 | Coding standards | PEP 8, type hints, docstrings, import order | CLAUDE.md |
 | WSL-only execution | Execution Environment — WSL Policy section | CLAUDE.md |
-| Zero-trust / validation loop | QA Tech Lead persona + Testing section + 5-gate checklist | CLAUDE.md |
+| Virtual environment via uv | Virtual Environment section (uv sync + uv run) | CLAUDE.md |
+| English-only artifacts | Language — English Only section | CLAUDE.md |
+| All docs in docs/ | Project Structure Rules section | CLAUDE.md |
+| README + CHANGELOG always in sync | Documentation Maintenance section | CLAUDE.md |
+| Zero-trust / validation loop | QA Tech Lead persona + Testing section + 6-gate checklist | CLAUDE.md |
+| UI smoke test before done | Gate 6 in Mandatory Pre-Completion Checklist | CLAUDE.md |
 | Documentation requirements | Documentation Maintenance section | CLAUDE.md |
 | Temp file cleanup | Temporary Files section + Stop hook | CLAUDE.md + settings.json |
 | Implement workflow | `/implement` skill (6-step protocol, code+tests+docs) | skills/implement/ |
