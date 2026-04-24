@@ -1,0 +1,69 @@
+{
+  "permissions": {
+    "allow": [
+      "Read",
+      "Write",
+      "Bash(uv:*)",
+      "Bash(git:*)",
+      "Bash(ruff:*)",
+      "Bash(mypy:*)",
+      "Bash(pytest:*)",
+      "Bash(az:*)",
+      "Edit(/.claude/skills/review/**)",
+      "Edit(/.claude/skills/test/**)"
+    ],
+    "deny": [
+      "Bash(pip install:*)",
+      "Read(.env)",
+      "Read(.env.*)",
+      "Write(.env)",
+      "Write(.venv/**)",
+      "Write(*.key)",
+      "Write(*.pem)"
+    ]
+  },
+  "model": "claude-sonnet-4-6",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_TOOL_INPUT_COMMAND\" | grep -qE '(^|[^u])pip install'; then echo 'DENY: Use uv add instead of pip install' && exit 1; fi"
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "path=\"$CLAUDE_TOOL_INPUT_PATH\"; if [[ \"$path\" == *'.env'* ]] || [[ \"$path\" == *'secrets'* ]] || [[ \"$path\" == *'.key'* ]] || [[ \"$path\" == *'.pem'* ]]; then echo 'DENY: Writing to sensitive path blocked: '$path && exit 1; fi"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "file=\"$CLAUDE_TOOL_OUTPUT_PATH\"; if [[ \"$file\" == *.py ]]; then uv run ruff check \"$file\" && uv run ruff format --check \"$file\" || echo 'WARNING: Ruff gate failed for '$file; fi"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "find . -name 'debug_*.py' -o -name 'scratch_*.py' -o -name 'test_manual_*.py' -o -name '*_temp.json' | grep -v '.venv' | xargs -r rm -v && echo 'Temporary file cleanup complete'"
+          }
+        ]
+      }
+    ]
+  }
+}

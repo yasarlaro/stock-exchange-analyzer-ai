@@ -1,0 +1,25 @@
+{
+  "servers": {
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp",
+      "description": "GitHub API: PR management, issue tracking, code search"
+    },
+    "azure": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["@azure/mcp@latest"],
+      "description": "Azure resource management and deployment operations",
+      "env": {
+        "AZURE_SUBSCRIPTION_ID": "${env:AZURE_SUBSCRIPTION_ID}",
+        "AZURE_RESOURCE_GROUP": "${env:AZURE_RESOURCE_GROUP}"
+      }
+    },
+    "playwright": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"],
+      "description": "Browser automation for UI testing and report page scraping"
+    }
+  }
+}
