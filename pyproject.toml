@@ -42,6 +42,10 @@ select = ["E", "F", "I", "N", "W", "UP", "ANN"]
 strict = true
 python_version = "3.13"
 
+[[tool.mypy.overrides]]
+module = "yfinance"
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 addopts = "-W error --cov=alphavision --cov-report=term-missing"
 asyncio_mode = "auto"

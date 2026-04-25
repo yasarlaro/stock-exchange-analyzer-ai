@@ -78,7 +78,7 @@ uv run pytest tests/test_universe.py -v
 uv run pytest -v
 ```
 
-**Current coverage**: 100% (25 tests)
+**Current coverage**: 99% (135 tests)
 
 ### Code Quality Checks
 
@@ -106,12 +106,22 @@ uv run python -c "import alphavision; print('OK')"
 stock-exchange-analyzer-ai/
 ├── src/alphavision/              # Main package
 │   ├── __init__.py              # Package entry point
-│   └── universe.py              # S&P 500 + Nasdaq-100 universe builder
+│   ├── models.py                # Pydantic models (TickerData, ScoredTicker)
+│   ├── universe.py              # S&P 500 + Nasdaq-100 universe builder
+│   ├── data_fetcher.py          # yfinance wrapper (fetch_ticker, fetch_universe)
+│   ├── filters.py               # Dual-Track filter (passes_turnaround, passes_momentum)
+│   └── scoring.py               # Conviction Score engine (rank_candidates, Top 20)
 ├── tests/                        # Test suite
 │   ├── __init__.py
-│   └── test_universe.py         # Universe module tests (25 tests, 100% coverage)
+│   ├── test_universe.py         # Universe module tests (25 tests, 100% coverage)
+│   ├── test_data_fetcher.py     # Data fetcher tests (40 tests, 97% coverage)
+│   ├── test_filters.py          # Filters tests (22 tests, 100% coverage)
+│   └── test_scoring.py          # Scoring tests (48 tests, 100% coverage)
 ├── docs/                         # All project documentation
 │   ├── universe.md              # Universe module API reference
+│   ├── data_fetcher.md          # Data fetcher module API reference
+│   ├── filters.md               # Filters module API reference
+│   ├── scoring.md               # Scoring module API reference
 │   ├── METADOLOGY.md            # Dual-Track filtering methodology
 │   ├── ROADMAP.md               # 7-phase implementation roadmap
 │   ├── SAD.md                   # System architecture document
@@ -160,9 +170,9 @@ git commit -m "docs: update universe module API"
 |-------|-------|--------|
 | **0** | Bootstrap (pyproject.toml, .gitignore, CHANGELOG.md) | ✅ Complete |
 | **1** | MVP UI (Universe Builder, Streamlit dashboard) | ✅ Complete |
-| **2** | Data Fetcher (fetch financial metrics for each ticker) | 📋 Planned |
-| **3** | Dual-Track Filter (apply Turnaround & Momentum filters) | 📋 Planned |
-| **4** | Conviction Score (compute 100-point score per ticker) | 📋 Planned |
+| **2** | Data Fetcher (fetch financial metrics for each ticker) | ✅ Complete |
+| **3** | Dual-Track Filter (apply Turnaround & Momentum filters) | ✅ Complete |
+| **4** | Conviction Score (compute 100-point score per ticker) | ✅ Complete |
 | **5** | SQLite Persistence (store weekly reports & leadership board) | 📋 Planned |
 | **6** | Azure Blob Backup (weekly encrypted backup to cloud) | 📋 Planned |
 
