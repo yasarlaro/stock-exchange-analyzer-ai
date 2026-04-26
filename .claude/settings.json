@@ -11,7 +11,8 @@
       "Bash(az:*)",
       "Edit(/.claude/skills/review/**)",
       "Edit(/.claude/skills/test/**)",
-      "Bash(curl -s http://localhost:8501/)"
+      "Bash(curl -s http://localhost:8501/)",
+      "Bash(wsl -- bash -c \"cd '/mnt/c/Users/Onur Yasarlar/gitrepos/stock-exchange-analyzer-ai' && uv run ruff check .\")"
     ],
     "deny": [
       "Bash(pip install:*)",

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import time
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 
 import pandas as pd
 import yfinance as yf
@@ -21,6 +23,12 @@ logger = logging.getLogger(__name__)
 _TRADING_DAYS_6M: int = 126
 _TRADING_DAYS_200: int = 200
 _HISTORY_PERIOD: str = "1y"
+_DEFAULT_MAX_WORKERS: int = 3
+
+# Batch-retry constants — rate-limited tickers are retried as a group
+# after a growing cooldown, so workers never compete for the same quota.
+_RATE_LIMIT_COOLDOWN: float = 8.0  # seconds for round 1; multiplied per round
+_MAX_RETRY_ROUNDS: int = 10  # safety cap; 10 rounds × max ~80 s cooldown
 
 
 def _extract_analyst_counts(
@@ -85,6 +93,11 @@ def _extract_eps_revision(eps_trend: object) -> float:
     if ago_30 == 0:
         return 0.0
     return (current - ago_30) / abs(ago_30)
+
+
+def _is_rate_limited(exc: Exception) -> bool:
+    msg = str(exc)
+    return "Too Many Requests" in msg or "Rate limited" in msg
 
 
 def fetch_ticker(ticker: str) -> TickerData:
@@ -168,19 +181,95 @@ def fetch_ticker(ticker: str) -> TickerData:
     )
 
 
-def fetch_universe(tickers: list[str]) -> list[TickerData]:
-    """Fetch data for all tickers, skipping any that fail.
+def fetch_universe(
+    tickers: list[str],
+    max_workers: int = _DEFAULT_MAX_WORKERS,
+) -> list[TickerData]:
+    """Fetch all tickers, retrying rate-limited ones until none remain.
+
+    Uses a multi-round batch strategy: each round fetches all pending tickers
+    in parallel. Tickers that receive a Yahoo Finance rate-limit response are
+    collected and retried together after a growing cooldown (not dropped).
+    Only tickers with permanent, non-rate-limit errors (e.g. no price history)
+    are skipped. Input order is preserved in the return value.
+
+    # Alternatives considered:
+    # - Per-ticker retry inside the worker: workers retry while still under
+    #   the same rate limit, so retries compete for quota — tested and shown
+    #   to drop ~122/520 tickers; rejected.
+    # - Unlimited retries with no round cap: could hang indefinitely on
+    #   network failure; _MAX_RETRY_ROUNDS provides a safety exit.
+    # - asyncio + aiohttp: yfinance is synchronous; ThreadPoolExecutor is
+    #   the simpler fit for I/O-bound synchronous calls.
 
     Args:
         tickers: List of stock ticker symbols.
+        max_workers: Maximum number of concurrent fetch threads.
+            Defaults to 3 — limits peak request rate to ~1–2 req/s,
+            well below Yahoo Finance's rate-limit threshold.
 
     Returns:
-        List of TickerData; tickers that raise an exception are omitted.
+        List of TickerData in input order. Tickers with permanent errors
+        (no price data, delisted) are omitted; rate-limited tickers are
+        always retried.
     """
-    results: list[TickerData] = []
-    for ticker in tickers:
-        try:
-            results.append(fetch_ticker(ticker))
-        except Exception as exc:
-            logger.warning("Skipping ticker '%s': %s", ticker, exc)
-    return results
+    if not tickers:
+        return []
+
+    results: dict[int, TickerData] = {}
+    pending: list[tuple[int, str]] = list(enumerate(tickers))
+
+    for round_num in range(_MAX_RETRY_ROUNDS):
+        if not pending:
+            break
+
+        rate_limited: list[tuple[int, str]] = []
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_idx: dict[Future[TickerData], tuple[int, str]] = {
+                executor.submit(fetch_ticker, ticker): (idx, ticker)
+                for idx, ticker in pending
+            }
+            for future in as_completed(future_to_idx):
+                idx, ticker = future_to_idx[future]
+                try:
+                    results[idx] = future.result()
+                except Exception as exc:
+                    if _is_rate_limited(exc):
+                        rate_limited.append((idx, ticker))
+                    else:
+                        logger.warning(
+                            "Skipping '%s' (permanent error): %s",
+                            ticker,
+                            exc,
+                        )
+
+        pending = rate_limited
+
+        if not pending:
+            logger.info(
+                "Round %d: all tickers fetched successfully.",
+                round_num + 1,
+            )
+            break
+
+        cooldown = _RATE_LIMIT_COOLDOWN * (round_num + 1)
+        logger.info(
+            "Round %d: %d rate-limited — retrying in %.0fs: %s",
+            round_num + 1,
+            len(pending),
+            cooldown,
+            [t for _, t in pending],
+        )
+        time.sleep(cooldown)
+
+    if pending:
+        logger.warning(
+            "Exhausted %d retry rounds; %d tickers still rate-limited "
+            "and will be omitted: %s",
+            _MAX_RETRY_ROUNDS,
+            len(pending),
+            [t for _, t in pending],
+        )
+
+    return [results[i] for i in sorted(results)]

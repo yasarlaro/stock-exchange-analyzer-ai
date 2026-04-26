@@ -5,6 +5,11 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+- `src/alphavision/data_fetcher.py`: `fetch_universe` now fetches tickers in parallel via `ThreadPoolExecutor` (default 5 workers), reducing wall-clock time for ~520 tickers by ~5×; input order is preserved
+- `src/alphavision/data_fetcher.py`: replace per-ticker retry with batch retry loop — rate-limited tickers are retried as a group after a growing cooldown (8 s × round), guaranteeing all tickers are fetched; default workers reduced to 3 to lower rate-limit pressure
+- `app.py`: Analysis tab replaced sequential per-ticker loop with parallel `fetch_universe` call inside `st.spinner`
+
 ### Added
 - `src/alphavision/filters.py`: Dual-Track filtering engine — `passes_turnaround`, `passes_momentum`, `apply_dual_track`
 - `src/alphavision/scoring.py`: Conviction Score engine — four-factor scoring (upside gap 40%, rating drift 30%, consensus 20%, EPS momentum 10%) and `rank_candidates` returning Top 20

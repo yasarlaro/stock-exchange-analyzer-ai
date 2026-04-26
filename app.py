@@ -85,25 +85,16 @@ with tab_analysis:
     st.markdown(
         "Fetch live financial data for all tickers, apply the Dual-Track "
         "filter, and rank candidates by Conviction Score (0–100).\n\n"
-        "> **Note**: fetching ~520 tickers may take several minutes."
+        "> **Note**: tickers are fetched in parallel (5 workers) — "
+        "~520 tickers typically complete in under a minute."
     )
 
     if st.button("Run Scoring Analysis", type="primary"):
-        from alphavision.data_fetcher import fetch_ticker
+        from alphavision.data_fetcher import fetch_universe
 
         tickers = df["ticker"].tolist()
-        progress = st.progress(0, text="Fetching financial data…")
-        universe_data = []
-        for idx, sym in enumerate(tickers):
-            try:
-                universe_data.append(fetch_ticker(sym))
-            except Exception:
-                pass
-            progress.progress(
-                (idx + 1) / len(tickers),
-                text=f"Fetched {idx + 1}/{len(tickers)} — {sym}",
-            )
-        progress.empty()
+        with st.spinner(f"Fetching {len(tickers)} tickers in parallel…"):
+            universe_data = fetch_universe(tickers)
 
         candidates = apply_dual_track(universe_data)
         top20 = rank_candidates(candidates)

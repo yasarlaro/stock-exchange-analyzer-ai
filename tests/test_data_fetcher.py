@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Generator
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import pandas as pd
 import pytest
@@ -11,6 +11,7 @@ import pytest
 from alphavision.data_fetcher import (
     _extract_analyst_counts,
     _extract_eps_revision,
+    _is_rate_limited,
     fetch_ticker,
     fetch_universe,
 )
@@ -328,6 +329,23 @@ class TestFetchTickerErrors:
             fetch_ticker("AAPL")
 
 
+# ── _is_rate_limited ───────────────────────────────────────────────────────
+
+
+class TestIsRateLimited:
+    def test_too_many_requests_returns_true(self) -> None:
+        assert _is_rate_limited(ValueError("Too Many Requests. Rate limited."))
+
+    def test_rate_limited_string_returns_true(self) -> None:
+        assert _is_rate_limited(RuntimeError("Rate limited. Try again."))
+
+    def test_generic_error_returns_false(self) -> None:
+        assert not _is_rate_limited(ValueError("Insufficient price history"))
+
+    def test_empty_message_returns_false(self) -> None:
+        assert not _is_rate_limited(Exception(""))
+
+
 # ── fetch_universe ─────────────────────────────────────────────────────────
 
 
@@ -363,3 +381,126 @@ class TestFetchUniverse:
         ):
             result = fetch_universe(["A", "B", "C"])
         assert result == []
+
+    def test_max_workers_parameter_is_accepted(self) -> None:
+        with patch(
+            "alphavision.data_fetcher.fetch_ticker",
+            side_effect=lambda t: _make_ticker_data(t),
+        ):
+            result = fetch_universe(["AAPL"], max_workers=1)
+        assert len(result) == 1
+        assert result[0].ticker == "AAPL"
+
+    def test_input_order_preserved_with_parallel_fetch(self) -> None:
+        symbols = ["AAPL", "MSFT", "GOOG", "AMZN", "META"]
+
+        with patch(
+            "alphavision.data_fetcher.fetch_ticker",
+            side_effect=lambda t: _make_ticker_data(t),
+        ):
+            result = fetch_universe(symbols, max_workers=5)
+
+        assert [r.ticker for r in result] == symbols
+
+    def test_preserves_order_when_some_fail(self) -> None:
+        def _side(ticker: str) -> TickerData:
+            if ticker in {"FAIL1", "FAIL2"}:
+                raise ValueError("no data")
+            return _make_ticker_data(ticker)
+
+        with patch("alphavision.data_fetcher.fetch_ticker", side_effect=_side):
+            result = fetch_universe(["AAPL", "FAIL1", "MSFT", "FAIL2", "GOOG"])
+
+        assert len(result) == 3
+        assert [r.ticker for r in result] == ["AAPL", "MSFT", "GOOG"]
+
+
+# ── fetch_universe — batch retry behaviour ────────────────────────────────
+
+
+class TestFetchUniverseBatchRetry:
+    def test_rate_limited_ticker_retried_in_next_round(self) -> None:
+        """A rate-limited ticker is not dropped — it appears in the results
+        after the retry round succeeds."""
+        rate_err = ValueError("Too Many Requests. Rate limited.")
+        call_count: dict[str, int] = {"SLOW": 0}
+
+        def _side(ticker: str) -> TickerData:
+            if ticker == "SLOW":
+                call_count["SLOW"] += 1
+                if call_count["SLOW"] == 1:
+                    raise rate_err
+            return _make_ticker_data(ticker)
+
+        with (
+            patch("alphavision.data_fetcher.fetch_ticker", side_effect=_side),
+            patch("alphavision.data_fetcher.time.sleep"),
+        ):
+            result = fetch_universe(["AAPL", "SLOW", "MSFT"])
+
+        assert len(result) == 3
+        assert {r.ticker for r in result} == {"AAPL", "SLOW", "MSFT"}
+        assert call_count["SLOW"] == 2  # fetched once (fail) + once (success)
+
+    def test_permanent_error_drops_ticker_without_retry(self) -> None:
+        """Non-rate-limit error drops the ticker immediately; no retry."""
+        call_count: dict[str, int] = {"BAD": 0}
+
+        def _side(ticker: str) -> TickerData:
+            if ticker == "BAD":
+                call_count["BAD"] += 1
+                raise ValueError("Insufficient price history")
+            return _make_ticker_data(ticker)
+
+        with (
+            patch("alphavision.data_fetcher.fetch_ticker", side_effect=_side),
+            patch("alphavision.data_fetcher.time.sleep"),
+        ):
+            result = fetch_universe(["AAPL", "BAD", "MSFT"])
+
+        assert len(result) == 2
+        assert all(r.ticker != "BAD" for r in result)
+        assert call_count["BAD"] == 1  # tried exactly once, not retried
+
+    def test_cooldown_sleep_called_between_retry_rounds(self) -> None:
+        """time.sleep fires once per failing round with a growing delay."""
+        rate_err = ValueError("Too Many Requests. Rate limited.")
+        fail_rounds: list[int] = [0]
+
+        def _side(ticker: str) -> TickerData:
+            if ticker == "SLOW" and fail_rounds[0] < 2:
+                fail_rounds[0] += 1
+                raise rate_err
+            return _make_ticker_data(ticker)
+
+        from alphavision.data_fetcher import _RATE_LIMIT_COOLDOWN
+
+        with (
+            patch("alphavision.data_fetcher.fetch_ticker", side_effect=_side),
+            patch("alphavision.data_fetcher.time.sleep") as mock_sleep,
+        ):
+            fetch_universe(["AAPL", "SLOW"])
+
+        # SLOW fails round 1 and round 2 → two sleeps, growing cooldown
+        assert mock_sleep.call_count == 2
+        assert mock_sleep.call_args_list[0] == call(_RATE_LIMIT_COOLDOWN * 1)
+        assert mock_sleep.call_args_list[1] == call(_RATE_LIMIT_COOLDOWN * 2)
+
+    def test_all_rate_limited_eventually_returns_all(self) -> None:
+        """All tickers rate-limited on round 1 → all succeed on round 2."""
+        rate_err = ValueError("Too Many Requests. Rate limited.")
+        first_call: set[str] = set()
+
+        def _side(ticker: str) -> TickerData:
+            if ticker not in first_call:
+                first_call.add(ticker)
+                raise rate_err
+            return _make_ticker_data(ticker)
+
+        with (
+            patch("alphavision.data_fetcher.fetch_ticker", side_effect=_side),
+            patch("alphavision.data_fetcher.time.sleep"),
+        ):
+            result = fetch_universe(["A", "B", "C"])
+
+        assert len(result) == 3

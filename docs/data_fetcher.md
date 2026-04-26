@@ -24,13 +24,22 @@ print(data.current_price, data.drawdown_pct, data.analyst_count)
 
 ---
 
-### `fetch_universe(tickers: list[str]) -> list[TickerData]`
+### `fetch_universe(tickers: list[str], max_workers: int = 3) -> list[TickerData]`
 
-Fetches data for every ticker in the list. Tickers that raise any exception are silently skipped (a warning is logged).
+Fetches data for every ticker using a multi-round batch strategy.
+Each round runs all pending tickers in parallel. Any tickers that
+receive a Yahoo Finance rate-limit response are collected and retried
+together after a growing cooldown (8 s, 16 s, 24 s, …). Only tickers
+that fail with a permanent, non-rate-limit error (e.g. no price history,
+delisted) are dropped. Results are returned in the same order as the
+input list.
 
-**Args**: `tickers` — list of ticker symbols (e.g., from `build_universe()`)
+**Args**:
+- `tickers` — list of ticker symbols (e.g., from `build_universe()`)
+- `max_workers` — maximum concurrent fetch threads (default: `3`)
 
-**Returns**: List of `TickerData`; length ≤ `len(tickers)`.
+**Returns**: `list[TickerData]` in input order. Tickers with permanent
+errors are omitted; rate-limited tickers are always retried.
 
 **Example**:
 ```python
@@ -38,8 +47,16 @@ from alphavision.data_fetcher import fetch_universe
 from alphavision.universe import build_universe
 
 tickers = build_universe()["ticker"].tolist()
-universe_data = fetch_universe(tickers)
+universe_data = fetch_universe(tickers)          # 516/516 guaranteed
 ```
+
+**Configuration constants** (module-level, not CLI flags):
+
+| Constant | Default | Purpose |
+|---|---|---|
+| `_DEFAULT_MAX_WORKERS` | `3` | Concurrent threads per round |
+| `_RATE_LIMIT_COOLDOWN` | `8.0` s | Base sleep between retry rounds |
+| `_MAX_RETRY_ROUNDS` | `10` | Safety cap on retry loop |
 
 ---
 
