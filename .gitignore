@@ -34,3 +34,6 @@ scratch_*.py
 test_manual_*.py
 *_temp.json
 output_debug.*
+
+# Local runtime data (caches, downloaded filings, etc.)
+data/

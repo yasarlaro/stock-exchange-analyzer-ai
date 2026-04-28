@@ -2,7 +2,7 @@
 
 **AI-powered equity research and screening for the S&P 500 and Nasdaq-100.**
 
-AlphaVision identifies the top 20 equities with maximum profit potential using a Dual-Track selection architecture: capturing both "Value" opportunities (stocks that have declined significantly) and "Momentum" winners (stocks in strong uptrends).
+AlphaVision identifies the top 20 equities with maximum profit potential using a Forward-Momentum selection architecture (v3.0): a single entry gate admits leaders in confirmed uptrends, ranked by a six-factor Conviction Score weighted 70% toward forward-looking signals (relative strength, EPS revisions, trend quality).
 
 ## Features (MVP Phase 1)
 
@@ -109,7 +109,7 @@ stock-exchange-analyzer-ai/
 │   ├── models.py                # Pydantic models (TickerData, ScoredTicker)
 │   ├── universe.py              # S&P 500 + Nasdaq-100 universe builder
 │   ├── data_fetcher.py          # yfinance wrapper (fetch_ticker, fetch_universe)
-│   ├── filters.py               # Dual-Track filter (passes_turnaround, passes_momentum)
+│   ├── filters.py               # Forward-Momentum gate (passes_forward_momentum)
 │   └── scoring.py               # Conviction Score engine (rank_candidates, Top 20)
 ├── tests/                        # Test suite
 │   ├── __init__.py

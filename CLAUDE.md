@@ -4,9 +4,10 @@
 
 AlphaVision is a hybrid investment terminal designed to identify the top 20
 equities with maximum profit potential in the S&P 500 and Nasdaq-100 universe.
-It employs a **Dual-Track** selection architecture: capturing both "Value"
-opportunities (stocks that have declined significantly) and "Momentum" winners
-(stocks in strong uptrends).
+It employs a **Forward-Momentum** selection architecture (v3.0): a single
+entry gate that admits leaders in confirmed uptrends, ranked by a six-factor
+Conviction Score weighted 70% toward forward-looking signals (relative
+strength, EPS revisions, trend quality).
 
 - **Cloud**: Azure only (no AWS, no GCP) — Azure Blob Storage exclusively
 - **Source Control**: GitHub
@@ -16,7 +17,7 @@ opportunities (stocks that have declined significantly) and "Momentum" winners
 ### Architecture Pipeline
 
 1. **Universe Builder** — Creates ~520 unique tickers from S&P 500 + Nasdaq-100.
-2. **Filtering Engine** — Applies Dual-Track filter detailed in METADOLOGY.md.
+2. **Filtering Engine** — Applies Forward-Momentum gate detailed in METADOLOGY.md.
 3. **Scoring Engine** — Computes Conviction Score (100 points).
 4. **Historical Persistence** — Processes weekly Top 20 into SQLite to build
    Leadership Board.
@@ -38,20 +39,35 @@ opportunities (stocks that have declined significantly) and "Momentum" winners
 - `Weekly_Reports`: Report_Date, Ticker, Score, Rank, Upside
 - `Leadership_Board`: Ticker, Streak, Total_Score, Avg_Rank
 
-### Methodology Summary (see docs/METADOLOGY.md for full detail)
+### Methodology Summary v3.0 (see docs/METADOLOGY.md for full detail)
 
-**Dual-Track Filtering (entry gate):**
-- Channel A — Turnaround: ≥ 25% drawdown from peak in last 6 months
-- Channel B — Momentum: Price > 200-day SMA AND 6-month return > 0%
+**Forward-Momentum entry gate** (must pass ALL):
+- Price > 200-day SMA (long-term uptrend)
+- 12-1 month return > 0 (Jegadeesh-Titman momentum window)
+- Price ≤ 1.15 × 20-day SMA (not climactically over-extended)
+- Analyst count ≥ 3 (data-quality floor)
 
-**Conviction Score weights:**
-1. Upside Gap — 40% (analyst target / current price − 1)
-2. Rating Drift — 30% (analyst rating change velocity, last 30 days)
-3. Consensus Strength — 20% (% of Strong Buy + Buy ratings)
-4. EPS Momentum — 10% (12–24 month earnings revision direction)
+**Rule of 40 (quality signal, not a hard filter):**
+- Score = Revenue Growth % + FCF Margin % ; ≥ 35% = strong quality signal
+
+**Conviction Score weights (v3.0 — six factors):**
+1. Relative Strength (12-1) — 30% (12-1 month return vs. SPY benchmark)
+2. EPS Revision — 25% (mean fractional EPS revision slope across 7d/30d/60d/90d windows via yfinance `get_eps_trend()`)
+3. Rating Drift — 15% (`clamp(50 + net_upgrades_30d × 10)`; net upgrades minus downgrades in last 30 days via Finnhub)
+4. Trend Quality — 15% (price vs. 200-day SMA; +25% above → max)
+5. Upside Gap — 10% (analyst mean target / current price − 1; capped at 30%)
+6. Consensus Strength — 5% (% of Strong Buy + Buy ratings)
+
+> **Stress-test penalty:** the conviction score is multiplied by 0.90 for
+> any candidate stretched > 10% above its 20-day SMA.
 
 **Leadership Rank:** `Points = (21 − Rank)` per week;
 `Leadership Score = Total Weekly Points × Total Weeks on List`
+
+> v2.0 (Dual-Track) is archived at `docs/archive/METADOLOGY_v2.md`. It was
+> retired because Channel A (Turnaround) combined with the 35% Upside Gap
+> weight produced a structural Mean-Reversion Bias — the v2.0 Top 20 was
+> 20-of-20 Fallen Angels.
 
 ---
 

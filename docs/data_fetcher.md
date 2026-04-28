@@ -1,62 +1,69 @@
 # Data Fetcher
 
-**Purpose**: yfinance wrapper that fetches per-ticker price history and analyst metrics needed by the filtering and scoring engines.
+**Purpose**: Thin orchestrator that composes a `TickerData` from three
+independent data providers (prices, analyst, fundamentals) and runs the
+multi-round batch-retry universe fetch.
+
+See [docs/providers.md](providers.md) for the per-provider details.
 
 ## Public API
 
 ### `fetch_ticker(ticker: str) -> TickerData`
 
-Fetches 1-year price history and analyst consensus data for a single ticker.
+Fetches one ticker by calling all three providers in sequence.
 
-**Args**: `ticker` — stock ticker symbol (e.g., `"AAPL"`)
+1. **Prices** (`fetch_price_snapshot`) — runs first; the only call that
+   may raise. A missing or too-short price history makes the ticker
+   unscoreable; the error propagates.
+2. **Analyst** (`fetch_analyst_snapshot`) — failures log a warning and
+   return an `AnalystSnapshot` with neutral defaults so the row is kept.
+3. **Fundamentals** (`fetch_fundamentals_snapshot`) — same graceful
+   degradation; `rule_of_40` and `earnings_quality` become `None`.
 
-**Returns**: `TickerData` with all price and analyst fields populated.
+`relative_strength_12_1` is always `0.0` here; populated by
+`fetch_universe()` after the SPY benchmark is fetched.
 
-**Raises**: `ValueError` — if price history is missing or too short to compute metrics.
+**Args**: `ticker` — stock ticker symbol (e.g. `"AAPL"`).
+
+**Returns**: `TickerData` with all fields populated (analyst / fundamentals
+fields default to `0` / `None` on provider failure).
+
+**Raises**: `ValueError` — if price history is missing or too short (< 2 rows).
 
 **Example**:
 ```python
 from alphavision.data_fetcher import fetch_ticker
 
 data = fetch_ticker("AAPL")
-print(data.current_price, data.drawdown_pct, data.analyst_count)
+print(data.current_price, data.return_12_1, data.rule_of_40)
 ```
 
 ---
 
 ### `fetch_universe(tickers: list[str], max_workers: int = 3) -> list[TickerData]`
 
-Fetches data for every ticker using a multi-round batch strategy.
-Each round runs all pending tickers in parallel. Any tickers that
-receive a Yahoo Finance rate-limit response are collected and retried
-together after a growing cooldown (8 s, 16 s, 24 s, …). Only tickers
-that fail with a permanent, non-rate-limit error (e.g. no price history,
-delisted) are dropped. Results are returned in the same order as the
-input list.
+Fetches all tickers in parallel, retrying rate-limited ones until none
+remain or `_MAX_RETRY_ROUNDS` is exhausted.
+
+After the batch, SPY is fetched once as the market benchmark.
+`relative_strength_12_1 = return_12_1 − spy_return_12_1` for every
+result. Falls back to `0.0` benchmark when SPY is unavailable.
 
 **Args**:
-- `tickers` — list of ticker symbols (e.g., from `build_universe()`)
-- `max_workers` — maximum concurrent fetch threads (default: `3`)
+- `tickers` — list of ticker symbols.
+- `max_workers` — concurrent fetch threads per round (default `3`).
 
-**Returns**: `list[TickerData]` in input order. Tickers with permanent
-errors are omitted; rate-limited tickers are always retried.
+**Returns**: `list[TickerData]` in input order with
+`relative_strength_12_1` populated.
 
-**Example**:
-```python
-from alphavision.data_fetcher import fetch_universe
-from alphavision.universe import build_universe
-
-tickers = build_universe()["ticker"].tolist()
-universe_data = fetch_universe(tickers)          # 516/516 guaranteed
-```
-
-**Configuration constants** (module-level, not CLI flags):
+**Configuration constants** (module-level):
 
 | Constant | Default | Purpose |
 |---|---|---|
 | `_DEFAULT_MAX_WORKERS` | `3` | Concurrent threads per round |
 | `_RATE_LIMIT_COOLDOWN` | `8.0` s | Base sleep between retry rounds |
 | `_MAX_RETRY_ROUNDS` | `10` | Safety cap on retry loop |
+| `_BENCHMARK_TICKER` | `"SPY"` | Market benchmark for RS computation |
 
 ---
 
@@ -67,38 +74,31 @@ universe_data = fetch_universe(tickers)          # 516/516 guaranteed
 | Field | Type | Description |
 |---|---|---|
 | `ticker` | `str` | Ticker symbol |
+| `company` | `str` | Company long name |
 | `current_price` | `float` | Most recent closing price |
-| `price_6m_high` | `float` | Max closing price in last ~126 trading days |
-| `drawdown_pct` | `float` | `(current - 6m_high) / 6m_high`; ≤ 0 |
-| `sma_200` | `float` | 200-day simple moving average of close |
-| `return_6m` | `float` | `(current - 6m_ago) / 6m_ago` |
-| `target_mean_price` | `float \| None` | Analyst mean price target; None if unavailable |
-| `analyst_count` | `int` | Number of analysts covering the ticker |
-| `strong_buy_count` | `int` | Strong Buy ratings (current period) |
-| `buy_count` | `int` | Buy ratings (current period) |
-| `eps_revision_direction` | `float` | Positive = upward EPS revisions (30-day comparison) |
+| `sma_20` | `float` | 20-day simple moving average |
+| `sma_200` | `float` | 200-day simple moving average |
+| `return_12_1` | `float` | 12-1 month return (Jegadeesh-Titman) |
+| `relative_strength_12_1` | `float` | `return_12_1 − spy_return_12_1`; `0.0` from `fetch_ticker` |
+| `target_mean_price` | `float \| None` | Analyst mean price target |
+| `analyst_count` | `int` | Analysts in latest recommendation snapshot |
+| `strong_buy_count` | `int` | Strong Buy ratings |
+| `buy_count` | `int` | Buy ratings |
+| `net_upgrades_30d` | `int` | Upgrades − downgrades in last 30 days |
+| `eps_revision_slope` | `float` | Mean fractional EPS revision slope |
+| `rule_of_40` | `float \| None` | Revenue growth % + FCF margin % |
+| `earnings_quality` | `float \| None` | FCF / Net Income ratio |
 
 ---
 
 ## Data Sources
 
-| Metric | yfinance Source |
-|---|---|
-| Price history | `Ticker.history(period="1y")["Close"]` |
-| Analyst target | `Ticker.info["targetMeanPrice"]` |
-| Analyst count | `Ticker.info["numberOfAnalystOpinions"]` |
-| Rating counts | `Ticker.recommendations_summary` (period `"0m"`) |
-| EPS revision | `Ticker.get_eps_trend()` (current vs. 30daysAgo) |
-
----
-
-## Configuration
-
-No environment variables required. All data is fetched via yfinance's
-free, unauthenticated API.
-
-## Notes
-
-- `_TRADING_DAYS_6M = 126`: approximately 6 calendar months of trading days.
-- `_TRADING_DAYS_200 = 200`: SMA-200 window; falls back to all available days if history is shorter.
-- All analyst fields default to `0` / `None` when yfinance returns no data — the function never raises for missing analyst data.
+| Metric | Provider | Source |
+|---|---|---|
+| Price history, SMAs, 12-1 | `prices.py` | `yf.Ticker.history()` |
+| Benchmark (SPY) | `prices.py` | `yf.Ticker("SPY").history()` (price-only) |
+| Net upgrades 30d | `analyst.py` | Finnhub `/stock/upgrade-downgrade` |
+| Analyst consensus | `analyst.py` | Finnhub `/stock/recommendation` |
+| Price target | `analyst.py` | Finnhub `/stock/price-target` |
+| EPS revision slope | `analyst.py` | `yf.Ticker.get_eps_trend()` |
+| Rule of 40, Earnings Quality | `fundamentals.py` | SEC EDGAR XBRL via edgartools |

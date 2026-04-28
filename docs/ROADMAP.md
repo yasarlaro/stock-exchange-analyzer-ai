@@ -280,11 +280,12 @@ Total candidates:      198 stocks  (23 overlap)
 **Goal**: Rank all candidates by the four-factor Conviction Score (0–100).
 Output: ordered Top 20 list.
 
-**METADOLOGY.md reference**:
-1. Upside Gap (40%) = (target / current) − 1
-2. Rating Drift (30%) = analyst rating change velocity, last 30 days
-3. Consensus Strength (20%) = % of Strong Buy + Buy ratings
-4. EPS Momentum (10%) = direction of 12–24 month earnings revisions
+**METADOLOGY.md reference (v2.0)**:
+1. Upside Gap (35%) = (target / current) − 1
+2. Rating Drift (25%) = Strong Buy fraction as institutional conviction proxy
+3. Relative Strength (15%) = 6-month return vs. SPY benchmark
+4. Consensus Strength (15%) = % of Strong Buy + Buy ratings
+5. EPS Momentum (10%) = direction of 12–24 month earnings revisions
 
 ### Deliverables
 

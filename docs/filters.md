@@ -1,43 +1,42 @@
 # Filters
 
-**Purpose**: Dual-Track filtering engine — classifies each ticker into Channel A (Turnaround), Channel B (Momentum), or excludes it from scoring.
+**Purpose**: Forward-Momentum gate (v3.0) — admits tickers in confirmed
+uptrends with positive intermediate-horizon momentum, sufficient
+analyst coverage, and which are not climactically over-extended.
 
 ## Public API
 
-### `passes_turnaround(data: TickerData) -> bool`
+### `passes_forward_momentum(data: TickerData) -> bool`
 
-Channel A gate: stock has declined ≥25% from its 6-month peak.
+Returns `True` iff the ticker passes **all four** gates:
 
-**Returns**: `True` if `data.drawdown_pct <= TURNAROUND_DRAWDOWN_THRESHOLD (-0.25)`.
+1. `current_price > sma_200` — long-term trend up.
+2. `return_12_1 > 0` — positive Jegadeesh-Titman 12-1 momentum.
+3. `current_price ≤ 1.15 × sma_20` — not over-extended above the 20-day SMA.
+4. `analyst_count ≥ 3` — minimum coverage so analyst sub-scores are
+   statistically meaningful.
 
----
-
-### `passes_momentum(data: TickerData) -> bool`
-
-Channel B gate: price above SMA-200 AND positive 6-month return.
-
-**Returns**: `True` if `current_price > sma_200 × MOMENTUM_SMA_MULTIPLIER`
-AND `return_6m > MOMENTUM_RETURN_THRESHOLD (0.0)`.
+Returns `False` if `sma_20` or `sma_200` is non-positive (defensive).
 
 ---
 
-### `apply_dual_track(universe: list[TickerData]) -> list[TickerData]`
+### `apply_forward_momentum(universe: list[TickerData]) -> list[TickerData]`
 
-Apply both channels; return tickers that pass at least one.
+Apply the gate; return the subset of tickers that pass.
 
-**Args**: `universe` — full list of `TickerData` from `fetch_universe()`
+**Args**: `universe` — full list of `TickerData` from `fetch_universe()`.
 
-**Returns**: Filtered subset; tickers qualifying for both channels appear once. Input order preserved.
+**Returns**: Filtered subset in input order.
 
 **Example**:
 ```python
 from alphavision.data_fetcher import fetch_universe
-from alphavision.filters import apply_dual_track
+from alphavision.filters import apply_forward_momentum
 from alphavision.universe import build_universe
 
 tickers = build_universe()["ticker"].tolist()
 universe_data = fetch_universe(tickers)
-candidates = apply_dual_track(universe_data)
+candidates = apply_forward_momentum(universe_data)
 print(f"{len(candidates)} candidates from {len(universe_data)} tickers")
 ```
 
@@ -45,19 +44,20 @@ print(f"{len(candidates)} candidates from {len(universe_data)} tickers")
 
 ## Constants
 
-| Constant | Value | Description |
+| Constant | Value | Gate |
 |---|---|---|
-| `TURNAROUND_DRAWDOWN_THRESHOLD` | `-0.25` | Channel A: drawdown must be ≤ -25% |
-| `MOMENTUM_SMA_MULTIPLIER` | `1.0` | Channel B: price must exceed 1× SMA-200 |
-| `MOMENTUM_RETURN_THRESHOLD` | `0.0` | Channel B: 6m return must be strictly positive |
+| `SMA_200_MULTIPLIER` | `1.0` | Gate 1 — `price > 1.0 × sma_200` |
+| `RETURN_12_1_THRESHOLD` | `0.0` | Gate 2 — `return_12_1 > 0` |
+| `EXTENSION_CAP` | `1.15` | Gate 3 — `price ≤ 1.15 × sma_20` |
+| `MIN_ANALYST_COUNT` | `3` | Gate 4 — `analyst_count ≥ 3` |
 
-## Channel Assignment
+## What changed from v2.0
 
-| Scenario | Channel |
-|---|---|
-| Only passes turnaround | A |
-| Only passes momentum | B |
-| Passes both | BOTH (included once) |
-| Passes neither | Excluded |
-
-The channel field is stored in `ScoredTicker.channel` after scoring (see [scoring.md](scoring.md)).
+- Channel A (Turnaround) **removed** — Mean-reversion bias on a
+  forward-momentum mandate.
+- Channel B (Momentum) replaced with the four-gate Forward-Momentum
+  filter; `return_6m` swapped for the 12-1 window, plus an
+  over-extension cap and analyst-count floor.
+- `ScoredTicker.channel` is no longer populated; reviewers can use
+  `ScoredTicker.over_extended` and `ScoredTicker.extension_pct` for
+  diagnostics.

@@ -12,7 +12,21 @@
       "Edit(/.claude/skills/review/**)",
       "Edit(/.claude/skills/test/**)",
       "Bash(curl -s http://localhost:8501/)",
-      "Bash(wsl -- bash -c \"cd '/mnt/c/Users/Onur Yasarlar/gitrepos/stock-exchange-analyzer-ai' && uv run ruff check .\")"
+      "Bash(wsl -- bash -c \"cd '/mnt/c/Users/Onur Yasarlar/gitrepos/stock-exchange-analyzer-ai' && uv run ruff check .\")",
+      "Bash(2>&1)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8501/)",
+      "Bash(pkill -f \"streamlit run app.py\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8502/)",
+      "Bash(kill %1)",
+      "Bash(wait %1)",
+      "Bash(curl -s -o /dev/null -w \"HTTP:%{http_code}\" http://localhost:8503/)",
+      "Bash(curl -s -o /dev/null -w \"HTTP_CODE=%{http_code}\\\\n\" http://localhost:8504/)",
+      "Bash(jobs)",
+      "Bash(curl -s -o /dev/null -w \"HTTP:%{http_code}\" http://localhost:8505/)",
+      "Bash(pkill -f \"streamlit\")",
+      "Bash(curl -s -o /dev/null -w \"HTTP:%{http_code}\\\\n\" http://localhost:8506/)",
+      "Bash(curl -s -o /dev/null -w \"HTTP:%{http_code}\" http://localhost:8506/)",
+      "Bash(wsl -- bash -c \"cd '/mnt/c/Users/Onur Yasarlar/gitrepos/stock-exchange-analyzer-ai' && uv run ruff check . 2>&1\")"
     ],
     "deny": [
       "Bash(pip install:*)",
@@ -22,6 +36,9 @@
       "Write(.venv/**)",
       "Write(*.key)",
       "Write(*.pem)"
+    ],
+    "additionalDirectories": [
+      "/tmp"
     ]
   },
   "model": "claude-sonnet-4-6",
